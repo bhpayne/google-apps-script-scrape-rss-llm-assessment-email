@@ -8,6 +8,8 @@ function generateRssDigestAndEmail() {
   ];
 
   const authors = ["Alexander Kolar", "Bob Smith"];
+
+  const keywords = ["quantum comput", "noise", "qubit", "circuit"];
   
   const promptHeader = "Analyze the RSS feed items. Use plain text formatting (no markdown). The audience is a PhD physicist with years of experience in quantum computing architecture. From the XML identify the important advancements in architecture and quantum error correction from at most 3 to 5 papers. Specify the item's title, arxiv URL, creators, and why this paper is included as a recommendation:\n\n";
   let aggregatedContent = promptHeader;
@@ -16,7 +18,7 @@ function generateRssDigestAndEmail() {
   let itemsForLLMCount = 0;
   let matchedItemsCount = 0;
   
-  // 1. Fetch top items from all your feeds
+  // 1. Fetch items from all your feeds
   feedUrls.forEach(url => {
     try {
       const response = UrlFetchApp.fetch(url);
@@ -29,10 +31,8 @@ function generateRssDigestAndEmail() {
       // Define the Dublin Core (dc) namespace for the 'creator' element
       const dcNamespace = XmlService.getNamespace('dc', 'http://purl.org/dc/elements/1.1/');
      
-      // 2026-07-01: the daily arxiv RSS has 108,000 tokens from 220 entries :( 
-      // Take the top 30 items from each feed to keep the prompt size reasonable
-      const limit = Math.min(items.length, 30);
-      for (let i = 0; i < limit; i++) {
+      // Process ALL items in the feed
+      for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const title = item.getChildText('title') || "No Title";
         const link = item.getChildText('link') || "No Link";
@@ -56,8 +56,23 @@ function generateRssDigestAndEmail() {
           matchedItemsContent += itemString;
           matchedItemsCount++;
         } else {
-          aggregatedContent += itemString;
-          itemsForLLMCount++;
+          // If not an author match, check if title or description contains any of the keywords
+          let isKeywordMatch = false;
+          const lowerTitle = title.toLowerCase();
+          const lowerDescription = description.toLowerCase();
+          
+          for (let k = 0; k < keywords.length; k++) {
+            const kw = keywords[k].toLowerCase();
+            if (lowerTitle.includes(kw) || lowerDescription.includes(kw)) {
+              isKeywordMatch = true;
+              break;
+            }
+          }
+          
+          if (isKeywordMatch) {
+            aggregatedContent += itemString;
+            itemsForLLMCount++;
+          }
         }
       }
     } catch (e) {
@@ -109,10 +124,8 @@ function generateRssDigestAndEmail() {
 
 // Helper function to call the model
 // as of 2026-07-01, list of models is on https://ai.google.dev/gemini-api/docs/pricing
-
 function callGemini(promptText, apiKey) {
-
-//const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+ //const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
 
@@ -140,4 +153,3 @@ function callGemini(promptText, apiKey) {
   const json = JSON.parse(responseText);
   return json.candidates[0].content.parts[0].text;
 }
-
