@@ -1,4 +1,3 @@
-
 function generateRssDigestAndEmail() {
   // Add all of the RSS feeds you want to assess
   const feedUrls = [
@@ -7,10 +6,16 @@ function generateRssDigestAndEmail() {
     //"https://postquantum.com/feed/"
     //"https://www.reddit.com/r/QuantumComputing.rss"
   ];
-  
-  let aggregatedContent = "Analyze the RSS feed items. Use plain text formatting (no markdown). The audience is a PhD physicist with years of experience in quantum computing architecture. From the XML identify the important advancements in architecture and quantum error correction from at most 3 to 5 papers. Specify the item's title, arxiv URL, creators, and why this paper is included as a recommendation:\n\n";
-  
 
+  const authors = ["Alexander Kolar", "Bob Smith"];
+  
+  const promptHeader = "Analyze the RSS feed items. Use plain text formatting (no markdown). The audience is a PhD physicist with years of experience in quantum computing architecture. From the XML identify the important advancements in architecture and quantum error correction from at most 3 to 5 papers. Specify the item's title, arxiv URL, creators, and why this paper is included as a recommendation:\n\n";
+  let aggregatedContent = promptHeader;
+  
+  let matchedItemsContent = "";
+  let itemsForLLMCount = 0;
+  let matchedItemsCount = 0;
+  
   // 1. Fetch top items from all your feeds
   feedUrls.forEach(url => {
     try {
@@ -23,9 +28,9 @@ function generateRssDigestAndEmail() {
       
       // Define the Dublin Core (dc) namespace for the 'creator' element
       const dcNamespace = XmlService.getNamespace('dc', 'http://purl.org/dc/elements/1.1/');
-      
-      // Take the top 3 items from each feed to keep the prompt size reasonable
-      // 2026-07-01: the daily arxiv RSS has 108,000 tokens from 220 entries :(
+     
+      // 2026-07-01: the daily arxiv RSS has 108,000 tokens from 220 entries :( 
+      // Take the top 30 items from each feed to keep the prompt size reasonable
       const limit = Math.min(items.length, 30);
       for (let i = 0; i < limit; i++) {
         const item = items[i];
@@ -36,59 +41,80 @@ function generateRssDigestAndEmail() {
         // Retrieve the 'creator' element using the dc namespace
         const creator = item.getChildText('creator', dcNamespace) || "No Creator";
         
-        aggregatedContent += `Title: ${title}\nLink: ${link}\nCreator: ${creator}\nDescription: ${description}\n\n`;
+        // Check if the 'creator' string contains any of the names in the authors list
+        let isAuthorMatch = false;
+        for (let j = 0; j < authors.length; j++) {
+          if (creator.toLowerCase().includes(authors[j].toLowerCase())) {
+            isAuthorMatch = true;
+            break;
+          }
+        }
+        
+        const itemString = `Title: ${title}\nLink: ${link}\nCreator: ${creator}\nDescription: ${description}\n\n`;
+        
+        if (isAuthorMatch) {
+          matchedItemsContent += itemString;
+          matchedItemsCount++;
+        } else {
+          aggregatedContent += itemString;
+          itemsForLLMCount++;
+        }
       }
     } catch (e) {
       Logger.log("Failed to process feed: " + url + " Error: " + e.toString());
     }
   });
 
-
-
-  // 2. Send the content to the Gemini API for assessment
+  // 2. Send the content to the Gemini API for assessment if there are items to assess
+  // dashboards for monitoring use:
+  // https://aistudio.google.com/rate-limit
+  // https://aistudio.google.com/app/usage
   const geminiApiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Replace with your AI Studio Key
   let aiAssessment = "";
   
-// dashboards for monitoring use:
-// https://aistudio.google.com/rate-limit
-// https://aistudio.google.com/app/usage
-
-  try {
-    aiAssessment = callGemini(aggregatedContent, geminiApiKey);
-  } catch (e) {
-    Logger.log("Gemini API Error: " + e.toString());
-    return;
+  if (itemsForLLMCount > 0) {
+    try {
+      aiAssessment = callGemini(aggregatedContent, geminiApiKey);
+    } catch (e) {
+      Logger.log("Gemini API Error: " + e.toString());
+      aiAssessment = "Error retrieving Gemini assessment: " + e.toString();
+    }
+  } else {
+    aiAssessment = "No remaining papers to assess.";
   }
   
-  // 3. Email the assessment to your Gmail account
+  // 3. Construct and email the assessment to your Gmail account
   const myEmail = Session.getActiveUser().getEmail();
-
-//  MailApp.sendEmail({
-//    to: myEmail,
-//    subject: "Daily AI RSS Feed Assessment",
-//    body: "Here is your automated assessment of the latest RSS updates:\n\n" + aiAssessment
-//  });
-
-  // Format today's date as YYYY-MM-DD using the script's timezone
-  const today = new Date();
+  const today = new Date(); // Format today's date as YYYY-MM-DD using the script's timezone
   const formattedDate = Utilities.formatDate(today, Session.getScriptTimeZone(), "yyyy-MM-dd");
   
+  let emailBody = "";
+  
+  // If there are papers matching your authors, list them at the top of the email
+  if (matchedItemsCount > 0) {
+    emailBody += `=== WATCHLIST AUTHOR MATCHES (${matchedItemsCount}) ===\n`;
+    emailBody += "These papers matched your author list and were excluded from AI assessment:\n\n";
+    emailBody += matchedItemsContent;
+    emailBody += "========================================\n\n";
+  }
+  
+  emailBody += "=== AI RSS FEED ASSESSMENT ===\n\n" + aiAssessment;
+
   MailApp.sendEmail({
     to: myEmail,
     subject: `${formattedDate} - arxiv RSS assessment by Gemini`,
-    body: "An automated assessment of the latest RSS updates:\n\n" + aiAssessment
+    body: emailBody
   });
-
-
 }
 
-// Helper function to call the  model
+// Helper function to call the model
+// as of 2026-07-01, list of models is on https://ai.google.dev/gemini-api/docs/pricing
+
 function callGemini(promptText, apiKey) {
 
-// as of 2026-07-01, list of models is on https://ai.google.dev/gemini-api/docs/pricing
 //const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
 
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
 
   const payload = {
     contents: [{
@@ -114,3 +140,4 @@ function callGemini(promptText, apiKey) {
   const json = JSON.parse(responseText);
   return json.candidates[0].content.parts[0].text;
 }
+
