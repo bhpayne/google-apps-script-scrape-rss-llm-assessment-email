@@ -1,15 +1,53 @@
 function generateRssDigestAndEmail() {
-  // Add all of the RSS feeds you want to assess
-  const feedUrls = [
-    "https://export.arxiv.org/rss/quant-ph"
-    //"https://algassert.com/feed.xml",
-    //"https://postquantum.com/feed/"
-    //"https://www.reddit.com/r/QuantumComputing.rss"
-  ];
+  const feedUrl = "https://export.arxiv.org/rss/quant-ph";
 
-  const authors = ["Alexander Kolar", "Bob Smith"];
+  const authors = ['alexei kitaev',
+    'austin fowler',
+    'craig gidney',
+    "Yuval Boger",
+    'john martinis',
+    'john preskill',
+    "Hartmut Neven", 
+    "Madelyn Cain", 
+    "Jay M. Gambetta",
+    'Google quantum',];
 
-  const keywords = ["quantum comput", "noise", "qubit", "circuit"];
+  const keywords = [
+    "asic",
+    "benchmark",
+    "bicycle code",
+    "calibrate",
+    "calibration",
+    "characterization",
+    "characterize",
+    "circuit quantum electrodynamics",
+    "circuit",
+    "clifford",
+    "coherent error",
+    "correlated error",
+    "cqed",
+    "decode",
+    "fpga",
+    "gross code",
+    "magic state",
+    "markovian",
+    "neutral atom",
+    "noise",
+    "noisy",
+    "pauli",
+    "photonic interconnect",
+    "photonic qubit",
+    "qec Codes",
+    "qldpc",
+    "quantum comput",
+    "quantum error correction",
+    "quantum software",
+    "qubit",
+    "simulator",
+    "superconducting resonator",
+    "surface code",
+    "syndrome measurement",
+    "toffoli",];
   
   const promptHeader = "Analyze the RSS feed items. Use plain text formatting (no markdown). The audience is a PhD physicist with years of experience in quantum computing architecture. From the XML identify the important advancements in architecture and quantum error correction from at most 3 to 5 papers. Specify the item's title, arxiv URL, creators, and why this paper is included as a recommendation:\n\n";
   let aggregatedContent = promptHeader;
@@ -18,73 +56,74 @@ function generateRssDigestAndEmail() {
   let itemsForLLMCount = 0;
   let matchedItemsCount = 0;
   
-  // 1. Fetch items from all your feeds
-  feedUrls.forEach(url => {
-    try {
-      const response = UrlFetchApp.fetch(url);
-      const xml = response.getContentText();
-      const document = XmlService.parse(xml);
-      const root = document.getRootElement();
-      const channel = root.getChild('channel');
-      const items = channel.getChildren('item');
+  // 1. Fetch items from your feed
+  try {
+    const response = UrlFetchApp.fetch(feedUrl);
+    const xml = response.getContentText();
+    const document = XmlService.parse(xml);
+    const root = document.getRootElement();
+    const channel = root.getChild('channel');
+    const items = channel.getChildren('item');
+    
+    // Check if the feed has zero items, and terminate if so
+    if (items.length === 0) {
+      Logger.log("No items found in the RSS feed. Terminating script.");
+      return; 
+    }
+
+    // Define the Dublin Core (dc) namespace for the 'creator' element
+    const dcNamespace = XmlService.getNamespace('dc', 'http://purl.org/dc/elements/1.1/');
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const title = item.getChildText('title') || "No Title";
+      const link = item.getChildText('link') || "No Link";
+      const description = item.getChildText('description') || "No Description";
       
-      // Define the Dublin Core (dc) namespace for the 'creator' element
-      const dcNamespace = XmlService.getNamespace('dc', 'http://purl.org/dc/elements/1.1/');
-     
-      // Process ALL items in the feed
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const title = item.getChildText('title') || "No Title";
-        const link = item.getChildText('link') || "No Link";
-        const description = item.getChildText('description') || "No Description";
+      // Retrieve the 'creator' element using the dc namespace
+      const creator = item.getChildText('creator', dcNamespace) || "No Creator";
+      
+      // Check if the 'creator' string contains any of the names in the authors list
+      let isAuthorMatch = false;
+      for (let j = 0; j < authors.length; j++) {
+        if (creator.toLowerCase().includes(authors[j].toLowerCase())) {
+          isAuthorMatch = true;
+          break;
+        }
+      }
+      
+      const itemString = `Title: ${title}\nLink: ${link}\nCreator: ${creator}\nDescription: ${description}\n\n`;
+      
+      if (isAuthorMatch) {
+        matchedItemsContent += itemString;
+        matchedItemsCount++;
+      } else {
+        // If not an author match, check if title or description contains any of the keywords
+        let isKeywordMatch = false;
+        const lowerTitle = title.toLowerCase();
+        const lowerDescription = description.toLowerCase();
         
-        // Retrieve the 'creator' element using the dc namespace
-        const creator = item.getChildText('creator', dcNamespace) || "No Creator";
-        
-        // Check if the 'creator' string contains any of the names in the authors list
-        let isAuthorMatch = false;
-        for (let j = 0; j < authors.length; j++) {
-          if (creator.toLowerCase().includes(authors[j].toLowerCase())) {
-            isAuthorMatch = true;
+        for (let k = 0; k < keywords.length; k++) {
+          const kw = keywords[k].toLowerCase();
+          if (lowerTitle.includes(kw) || lowerDescription.includes(kw)) {
+            isKeywordMatch = true;
             break;
           }
         }
         
-        const itemString = `Title: ${title}\nLink: ${link}\nCreator: ${creator}\nDescription: ${description}\n\n`;
-        
-        if (isAuthorMatch) {
-          matchedItemsContent += itemString;
-          matchedItemsCount++;
-        } else {
-          // If not an author match, check if title or description contains any of the keywords
-          let isKeywordMatch = false;
-          const lowerTitle = title.toLowerCase();
-          const lowerDescription = description.toLowerCase();
-          
-          for (let k = 0; k < keywords.length; k++) {
-            const kw = keywords[k].toLowerCase();
-            if (lowerTitle.includes(kw) || lowerDescription.includes(kw)) {
-              isKeywordMatch = true;
-              break;
-            }
-          }
-          
-          if (isKeywordMatch) {
-            aggregatedContent += itemString;
-            itemsForLLMCount++;
-          }
+        if (isKeywordMatch) {
+          aggregatedContent += itemString;
+          itemsForLLMCount++;
         }
       }
-    } catch (e) {
-      Logger.log("Failed to process feed: " + url + " Error: " + e.toString());
     }
-  });
+  } catch (e) {
+    Logger.log("Failed to process feed: " + feedUrl + " Error: " + e.toString());
+    return; // Terminate script execution if the fetch or parse failed
+  }
 
   // 2. Send the content to the Gemini API for assessment if there are items to assess
-  // dashboards for monitoring use:
-  // https://aistudio.google.com/rate-limit
-  // https://aistudio.google.com/app/usage
-  const geminiApiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Replace with your AI Studio Key
+  const geminiApiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Replace with your AI Studio Key
   let aiAssessment = "";
   
   if (itemsForLLMCount > 0) {
@@ -123,10 +162,7 @@ function generateRssDigestAndEmail() {
 }
 
 // Helper function to call the model
-// as of 2026-07-01, list of models is on https://ai.google.dev/gemini-api/docs/pricing
 function callGemini(promptText, apiKey) {
- //const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
 
   const payload = {
