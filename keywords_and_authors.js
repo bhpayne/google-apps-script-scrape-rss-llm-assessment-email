@@ -1,4 +1,5 @@
   const authors = ['alexei kitaev',
+    'sergio boixo',
     'austin fowler',
     'craig gidney',
     "Yuval Boger",
