@@ -1,5 +1,4 @@
 function sendHackerNewsDigest() {
-  // CONFIGURATION: If Session.getActiveUser().getEmail() fails, replace it with your email string (e.g., "yourname@gmail.com")
   const recipientEmail = Session.getActiveUser().getEmail();
   
   if (!recipientEmail) {
@@ -7,9 +6,12 @@ function sendHackerNewsDigest() {
     return;
   }
   
-  const hoursAgo = 5; // Change this if you adjust your trigger timing
+  const hoursAgo = 48; // Change this if you adjust your trigger timing
   const targetTimeSec = Math.floor(Date.now() / 1000) - (hoursAgo * 60 * 60);
   const baseUrl = "https://hacker-news.firebaseio.com/v0";
+  
+  // Define the target keywords
+  const keywords = ["quantum comput", "ftqc", "quera", "psiquantum", "oratomic", "quantum archit", "preskill", "gidney", "quantum error", "logical qubit"];
   
   try {
     // Fetch the list of newest story IDs
@@ -38,7 +40,21 @@ function sendHackerNewsDigest() {
           
           if (item && item.type === "story") {
             if (item.time >= targetTimeSec) {
-              stories.push(item);
+              
+              // Constraint 1: Check if 'title' or 'url' contains any of the target keywords (case-insensitive)
+              const titleText = (item.title || "").toLowerCase();
+              const urlText = (item.url || "").toLowerCase();
+              const hasKeyword = keywords.some(keyword => titleText.includes(keyword) || urlText.includes(keyword));
+              
+              // Constraint 2: Check if descendants (comment count) is greater than 1
+              const commentCount = item.descendants || 0;
+              const hasMinComments = commentCount > 1;
+              
+              // Only push the story if both constraints are met
+              if (hasKeyword && hasMinComments) {
+                stories.push(item);
+              }
+              
             } else {
               // Since newstories.json is ordered newest to oldest,
               // we stop processing once we find an item older than our threshold.
@@ -53,7 +69,7 @@ function sendHackerNewsDigest() {
     
     // Email compilation and transmission
     if (stories.length === 0) {
-      Logger.log("No stories found in the past " + hoursAgo + " hours.");
+      Logger.log("No stories found matching your criteria in the past " + hoursAgo + " hours.");
       return;
     }
     
