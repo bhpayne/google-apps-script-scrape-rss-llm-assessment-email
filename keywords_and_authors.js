@@ -30,6 +30,8 @@
 "decode",
 "decoding",
 "error correct",
+"fault-tolerant quantum computer",
+"fault tolerant quantum computer",
 "fpga",
 "ftqc",
 "gidney",
