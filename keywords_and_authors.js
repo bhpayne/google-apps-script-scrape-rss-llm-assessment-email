@@ -1,15 +1,17 @@
-  const authors = ['alexei kitaev',
-    'sergio boixo',
+  const authors = [
+    'alexei kitaev',
     'austin fowler',
     'craig gidney',
-    "Yuval Boger",
+    'google quantum',
+    'hartmut neven',
+    'jay m. gambetta',
     'john martinis',
     'john preskill',
-    "Hartmut Neven", 
-    "Madelyn Cain", 
-    "Jay M. Gambetta",
-    "Mark Saffman",
-    'Google quantum',];
+    'madelyn cain',
+    'mark saffman',
+    'sergio boixo',
+    'yuval boger',
+];
 
   const keywords = [
 "asic",
