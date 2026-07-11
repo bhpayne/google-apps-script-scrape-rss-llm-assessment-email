@@ -1,17 +1,19 @@
   const authors = [
     'alexei kitaev',
-    'austin fowler',
-    'craig gidney',
+    'austin fowler',   // https://scholar.google.com/citations?user=U6lreOYAAAAJ
+    'craig gidney',    // https://scholar.google.com/citations?user=qKTv84IAAAAJ
     'google quantum',
-    'hartmut neven',
-    'jay m. gambetta',
+    'hartmut neven',   // https://scholar.google.com/citations?user=r2E5Ak8AAAAJ
+    'jay m. gambetta', // https://scholar.google.com/citations?user=690ygNAAAAAJ
     'john martinis',
-    'john preskill',
-    'madelyn cain',
-    'mark saffman',
-    'sergio boixo',
-    'yuval boger',
+    'john preskill',   // https://scholar.google.com/citations?user=K2BMBtcAAAAJ
+    'madelyn cain',    // https://scholar.google.com/citations?user=29DhqkUAAAAJ
+    'mark saffman',    // https://scholar.google.com/citations?user=d5jVVBoAAAAJ
+    'sergio boixo',    // https://scholar.google.com/citations?user=U5qDA20AAAAJ
+    'yuval boger',     // https://scholar.google.com/citations?user=xYF8nPUAAAAJ
 ];
+
+
 
   const keywords = [
 "asic",
